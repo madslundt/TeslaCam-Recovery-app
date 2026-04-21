@@ -4,12 +4,15 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write
+
 jobs:
   # ── Validate draft release tag ───────────────────────────────────────────────
   validate:
     name: Validate Release Tag
     runs-on: ubuntu-latest
-    if: github.event.release.draft == true
+    if: github.event.release.draft
     outputs:
       version: ${{ steps.parse.outputs.version }}
 
@@ -66,9 +69,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -107,9 +110,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -137,8 +140,6 @@ jobs:
     name: Publish Release
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Download all build artifacts

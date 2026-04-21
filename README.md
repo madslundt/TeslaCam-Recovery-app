@@ -38,6 +38,13 @@ npm install
 npm start
 ```
 
+## Test & lint
+
+```bash
+npm test       # run unit tests
+npm run lint   # run ESLint
+```
+
 ## Build
 
 ```bash
@@ -52,17 +59,32 @@ npm run build:linux  # AppImage
 
 ## Release process
 
-Releases are published automatically via GitHub Actions.
+Releases are automated via GitHub Actions and triggered by creating a **draft** release with a version tag.
 
-1. Bump the version in `package.json` and commit to `master`
-2. Go to **GitHub → Releases → Draft a new release**
-3. Click **Choose a tag**, type a new tag in `vMAJOR.MINOR.PATCH` format (e.g. `v1.2.3`), and select **Create new tag on publish** — the version must be strictly higher than the latest published release
-4. Fill in the release title and notes, then click **Save draft** (do **not** publish yet)
-5. The pipeline triggers automatically and will:
-   - Validate the semver tag format and ensure the version is higher than the last release
-   - Run lint and unit tests
-   - Build `.dmg` (macOS), `.exe` (Windows), and `.AppImage` (Linux) in parallel
-   - Attach all artifacts and publish the release
+1. Decide the new version number following [semver](https://semver.org/) — `MAJOR.MINOR.PATCH`. It must be strictly higher than the latest published release.
+
+2. Go to **GitHub → Releases → Draft a new release**.
+
+3. Enter the tag in the **Choose a tag** field (e.g. `1.2.0` or `v1.2.0`). Create it pointing at the commit you want to release.
+
+4. Fill in the release title and description/changelog.
+
+5. Check **Set as a draft release** and click **Save draft**. Do **not** click "Publish release".
+
+6. The release workflow starts automatically and will:
+   - Validate the tag matches `major.minor.patch` format
+   - Verify the version is higher than the latest published release
+   - Run linting and all tests
+   - Build executables in parallel for macOS (`.dmg`), Windows (`.exe`), and Linux (`.AppImage`)
+   - Attach the built files to the release
+   - Publish the release (remove draft status)
+
+7. Monitor progress under **Actions** in the repository. If any step fails, the release stays as a draft so you can fix the issue and retry.
+
+### Version validation rules
+
+- Tag must match the pattern `X.Y.Z` (the leading `v` is optional, e.g. both `1.2.0` and `v1.2.0` are accepted)
+- The version must be strictly greater than the latest published release — patch, minor, or major bump all work; re-releasing the same or lower version will fail
 
 ## Project structure
 
