@@ -41,7 +41,15 @@
           ]
         }
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "identity": "Developer ID Application: Mads Engel Lundt (QK69VT259D)",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": {
+        "teamId": "QK69VT259D"
+      }
     },
     "win": {
       "target": [
