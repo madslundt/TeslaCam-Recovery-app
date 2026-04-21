@@ -63,7 +63,16 @@ Releases are automated via GitHub Actions and triggered by pushing a version tag
 
 1. Decide the new version number following [semver](https://semver.org/) — `MAJOR.MINOR.PATCH`. It must be strictly higher than the latest published release.
 
-2. Make sure all changes are committed and pushed to `master`.
+2. Bump the `version` field in `package.json` to match the new version, commit, and push to `master`:
+
+   ```bash
+   # e.g. for v1.2.3
+   npm version 1.2.3 --no-git-tag-version
+   git add package.json && git commit -m "chore: bump version to 1.2.3"
+   git push origin master
+   ```
+
+   > This is required — electron-builder uses the `package.json` version for artifact file names.
 
 3. Tag the commit and push the tag:
 
