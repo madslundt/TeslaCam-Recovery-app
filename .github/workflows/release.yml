@@ -32,6 +32,19 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@v5
+
+      - name: Verify package.json version matches tag
+        env:
+          NEW_VERSION: ${{ steps.parse.outputs.version }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$NEW_VERSION" ]; then
+            echo "ERROR: package.json version ($PKG_VERSION) does not match tag ($NEW_VERSION)"
+            exit 1
+          fi
+          echo "package.json version $PKG_VERSION matches tag"
+
       - name: Check version is higher than latest published release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
