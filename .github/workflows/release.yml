@@ -169,6 +169,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
+          gh release delete "$TAG_NAME" --repo "$REPO" --yes 2>/dev/null || true
           mapfile -t FILES < <(find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" \))
           gh release create "$TAG_NAME" \
             --repo "$REPO" \
