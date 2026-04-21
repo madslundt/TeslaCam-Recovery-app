@@ -314,10 +314,12 @@
     <div class="perm-box hidden" id="permBox" role="alert">
         <h4>&#x26A0; <span data-i18n="permTitle">Permission Error</span></h4>
         <div id="permMac" class="hidden">
-            <p><strong>The drive must be unmounted before scanning.</strong></p>
-            <p>In Finder, right-click the Tesla drive &#x2192; <strong>Eject</strong>, then click Scan again.
-               The drive stays physically connected — macOS releases exclusive access.</p>
-            <p>Or run in Terminal: <code>diskutil unmountDisk /dev/diskN</code></p>
+            <p><strong>Two things to check:</strong></p>
+            <p><strong>1. Unmount the drive</strong> — In Finder, right-click the Tesla drive &#x2192; <strong>Eject</strong>, or run in Terminal:<br>
+               <code id="diskutilCmd">diskutil unmountDisk /dev/diskN</code><br>
+               The drive stays physically connected — macOS just releases exclusive access.</p>
+            <p><strong>2. Grant Full Disk Access</strong> — On macOS Ventura and later, raw disk reads also require this permission even after unmounting:<br>
+               <strong>System Settings &#x2192; Privacy &amp; Security &#x2192; Full Disk Access</strong> &#x2192; enable the toggle for this app, then click Try again.</p>
         </div>
         <div id="permLinux" class="hidden">
             <p><strong>Raw device access requires elevated permissions.</strong></p>
@@ -839,7 +841,7 @@ function renderDrives(drives) {
 refreshBtn.addEventListener('click', loadDrives);
 
 // ── Start scan for chosen drive (3-step: unmount → choose folder → scan) ───────
-async function handleDevice(drive) {
+async function handleDevice(drive, outputDir = null) {
     currentDrive  = drive;
     srcDevicePath = drive.device;
     srcOutputDir      = null;
@@ -876,16 +878,22 @@ async function handleDevice(drive) {
     }
 
     // Step 2: Choose output folder
-    statusText.textContent = t('statusChooseFolder');
-    const folder = await api.chooseOutputFolder();
-    if (!folder) {
-        hideEl(progressSection);
-        showEl(driveSection);
-        return;
+    if (outputDir) {
+        srcOutputDir = outputDir;
+        outputPath.textContent = outputDir;
+        showEl(outputLine);
+    } else {
+        statusText.textContent = t('statusChooseFolder');
+        const folder = await api.chooseOutputFolder();
+        if (!folder) {
+            hideEl(progressSection);
+            showEl(driveSection);
+            return;
+        }
+        srcOutputDir = folder;
+        outputPath.textContent = folder;
+        showEl(outputLine);
     }
-    srcOutputDir = folder;
-    outputPath.textContent = folder;
-    showEl(outputLine);
 
     // Step 3: Scan
     statusText.textContent = t('statusInit');
@@ -904,12 +912,15 @@ function showUnmountError(msg) {
 
 retryBtn.addEventListener('click', () => {
     hideEl(errorBox);
-    if (currentDrive) handleDevice(currentDrive);
+    if (currentDrive) handleDevice(currentDrive, srcOutputDir);
 });
 
 backFromRetryBtn.addEventListener('click', () => {
     hideEl(progressSection);
     hideEl(errorBox);
+    hideEl(permBox);
+    hideEl(retryBar);
+    hideEl(resultsSection);
     showEl(driveSection);
 });
 
@@ -981,6 +992,9 @@ cancelBtn.addEventListener('click', () => {
 scanAnotherBtn.addEventListener('click', () => {
     hideEl(progressSection);
     hideEl(geoSection);
+    hideEl(permBox);
+    hideEl(retryBar);
+    hideEl(resultsSection);
     showEl(driveSection);
     loadDrives();
 });
@@ -1267,7 +1281,12 @@ function showPermHelp() {
     document.getElementById('permMac').classList.toggle('hidden',   plat !== 'darwin');
     document.getElementById('permLinux').classList.toggle('hidden', plat !== 'linux');
     document.getElementById('permWin').classList.toggle('hidden',   plat !== 'win32');
+    if (plat === 'darwin' && currentDrive?.displayDevice) {
+        document.getElementById('diskutilCmd').textContent = 'diskutil unmountDisk ' + currentDrive.displayDevice;
+    }
+    scanAnotherBtn.classList.add('hidden');
     showEl(permBox);
+    showEl(retryBar);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

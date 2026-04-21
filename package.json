@@ -1,6 +1,6 @@
 {
   "name": "teslacam-recovery",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Tesla dashcam video recovery — scans USB drives directly",
   "main": "main.js",
   "scripts": {
