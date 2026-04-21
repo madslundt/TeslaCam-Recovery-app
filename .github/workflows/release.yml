@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Validate tag ─────────────────────────────────────────────────────────────
   validate:
@@ -153,9 +156,9 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          FILES=$(find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" \) | tr '\n' ' ')
+          mapfile -t FILES < <(find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" \))
           gh release create "$TAG_NAME" \
             --repo "$REPO" \
             --title "$TAG_NAME" \
             --generate-notes \
-            $FILES
+            "${FILES[@]}"
