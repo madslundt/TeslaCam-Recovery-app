@@ -1,69 +1,176 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-
-permissions:
-  contents: write
+  release:
+    types: [created]
 
 jobs:
-  build-mac:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm ci
-      - name: Import signing certificate
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
-          security create-keychain -p actions build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p actions build.keychain
-          security import /tmp/cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k actions build.keychain
-          rm /tmp/cert.p12
-      - name: Build and notarize
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build:mac -- --publish never
-      - uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: dist/*.dmg
-
-  build-win:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm ci
-      - run: npm run build:win -- --publish never
-      - uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: dist/*.exe
-
-  build-linux:
+  # ── Validate draft release tag ───────────────────────────────────────────────
+  validate:
+    name: Validate Release Tag
     runs-on: ubuntu-latest
+    if: github.event.release.draft == true
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+
+    steps:
+      - name: Parse and validate semver tag
+        id: parse
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: Tag '$TAG_NAME' does not match semver major.minor.patch format"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check version is higher than latest published release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NEW_VERSION: ${{ steps.parse.outputs.version }}
+        run: |
+          LATEST=$(gh release list \
+            --repo "$REPO" \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --limit 1 \
+            --json tagName \
+            --jq '.[0].tagName // ""')
+
+          if [ -z "$LATEST" ]; then
+            echo "No existing published release — first release, proceeding."
+            exit 0
+          fi
+
+          LATEST="${LATEST#v}"
+          echo "Comparing new=$NEW_VERSION against latest=$LATEST"
+
+          IFS='.' read -r NEW_MAJ NEW_MIN NEW_PAT <<< "$NEW_VERSION"
+          IFS='.' read -r CUR_MAJ CUR_MIN CUR_PAT <<< "$LATEST"
+
+          if   [ "$NEW_MAJ" -gt "$CUR_MAJ" ]; then exit 0
+          elif [ "$NEW_MAJ" -eq "$CUR_MAJ" ] && [ "$NEW_MIN" -gt "$CUR_MIN" ]; then exit 0
+          elif [ "$NEW_MAJ" -eq "$CUR_MAJ" ] && [ "$NEW_MIN" -eq "$CUR_MIN" ] && [ "$NEW_PAT" -gt "$CUR_PAT" ]; then exit 0
+          fi
+
+          echo "ERROR: New version $NEW_VERSION is not strictly greater than latest published $LATEST"
+          exit 1
+
+  # ── Lint and test ────────────────────────────────────────────────────────────
+  lint-and-test:
+    name: Lint & Test
+    needs: validate
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm ci
-      - run: npm run build:linux -- --publish never
-      - uses: softprops/action-gh-release@v2
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Lint
+        working-directory: app
+        run: npm run lint
+
+      - name: Test
+        working-directory: app
+        run: npm test
+
+  # ── Build cross-platform executables ─────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }})
+    needs: lint-and-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            build_script: build:mac
+            artifact_glob: '*.dmg'
+            artifact_name: dmg
+          - os: windows-latest
+            build_script: build:win
+            artifact_glob: '*.exe'
+            artifact_name: exe
+          - os: ubuntu-latest
+            build_script: build:linux
+            artifact_glob: '*.AppImage'
+            artifact_name: appimage
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: dist/*.AppImage
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build
+        working-directory: app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          BUILD_SCRIPT: ${{ matrix.build_script }}
+        run: npm run "$BUILD_SCRIPT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: app/dist/${{ matrix.artifact_glob }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── Attach artifacts and publish release ─────────────────────────────────────
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload artifacts to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" \) | \
+          while read -r file; do
+            echo "Uploading: $file"
+            gh release upload "$TAG_NAME" "$file" \
+              --repo "$REPO" \
+              --clobber
+          done
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release edit "$TAG_NAME" \
+            --repo "$REPO" \
+            --draft=false
