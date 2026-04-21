@@ -14,9 +14,10 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: npm run build:mac
+      - run: npm run build:mac -- --publish never
       - uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           files: dist/*.dmg
 
   build-win:
@@ -27,9 +28,10 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: npm run build:win
+      - run: npm run build:win -- --publish never
       - uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           files: dist/*.exe
 
   build-linux:
@@ -40,7 +42,8 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: npm run build:linux
+      - run: npm run build:linux -- --publish never
       - uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           files: dist/*.AppImage
