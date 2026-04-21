@@ -26,3 +26,6 @@ npm-debug.log*
 
 # OMC
 .omc/
+
+# Superpowers (internal planning artifacts)
+docs/superpowers/

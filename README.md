@@ -12,11 +12,14 @@ A cross-platform desktop app (Electron) that recovers deleted dashcam clips dire
 
 ## Download & use
 
-Download the latest installer for your platform from the [Releases](../../releases/latest) page:
+1. Go to the [Releases](../../releases/latest) page and download the installer for your platform:
+   - **macOS** — `.dmg` — open and drag the app to Applications, then launch it
+   - **Windows** — `.exe` — run the installer, then launch from the Start menu
+   - **Linux** — `.AppImage` — make it executable (`chmod +x *.AppImage`) and run it
 
-- **macOS** — `.dmg`
-- **Windows** — `.exe`
-- **Linux** — `.AppImage`
+2. Plug in your Tesla USB drive.
+
+3. Open the app, select the drive, choose an output folder, and start the scan.
 
 **Platform-specific permissions:**
 - **macOS** — eject the drive in Finder before scanning (keeps it physically connected)
@@ -47,17 +50,18 @@ npm run build:win    # NSIS installer (requires Administrator)
 npm run build:linux  # AppImage
 ```
 
-## Release
+## Release process
 
-Releases are published automatically via GitHub Actions when a draft release is created with a valid tag.
+Releases are published automatically via GitHub Actions.
 
-1. Go to **GitHub → Releases → Draft a new release**
-2. Create a new tag in `vMAJOR.MINOR.PATCH` format (e.g. `v1.2.3`) — must be strictly higher than the latest published release
-3. Save as **draft**
-4. The pipeline will automatically:
-   - Validate the semver tag and version bump
-   - Run lint and tests
-   - Build `.dmg` (macOS), `.exe` (Windows), and `.AppImage` (Linux)
+1. Bump the version in `package.json` and commit to `master`
+2. Go to **GitHub → Releases → Draft a new release**
+3. Click **Choose a tag**, type a new tag in `vMAJOR.MINOR.PATCH` format (e.g. `v1.2.3`), and select **Create new tag on publish** — the version must be strictly higher than the latest published release
+4. Fill in the release title and notes, then click **Save draft** (do **not** publish yet)
+5. The pipeline triggers automatically and will:
+   - Validate the semver tag format and ensure the version is higher than the last release
+   - Run lint and unit tests
+   - Build `.dmg` (macOS), `.exe` (Windows), and `.AppImage` (Linux) in parallel
    - Attach all artifacts and publish the release
 
 ## Project structure
