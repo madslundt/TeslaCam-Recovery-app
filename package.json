@@ -42,7 +42,6 @@
         }
       ],
       "category": "public.app-category.utilities",
-      "identity": "Mads Engel Lundt (QK69VT259D)",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
