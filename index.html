@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' teslacam:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src teslacam: blob:">
+    <title>Tesla Dashcam Recovery</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #222535;
+            --border: #2d3148;
+            --accent: #e31937;
+            --text: #e8e9f0;
+            --text-dim: #7c7f96;
+            --success: #2dba6b;
+            --warn: #f0a500;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            -webkit-app-region: drag;
+        }
+        header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.2px; }
+        .badge {
+            background: var(--accent);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        main { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
+
+        /* Section */
+        .section { margin-top: 26px; }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* Drive selector */
+        .drive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+        .drive-card {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 18px 16px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color 0.15s;
+        }
+        .drive-card:hover { border-color: #4a4f6a; }
+        .drive-icon { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+        .drive-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .drive-path { font-size: 11px; color: var(--text-dim); font-family: 'SF Mono', 'Fira Code', monospace; }
+        .drive-size { font-size: 12px; color: var(--text-dim); }
+        .drive-scan-btn {
+            margin-top: 8px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity 0.12s;
+            -webkit-app-region: no-drag;
+        }
+        .drive-scan-btn:hover { opacity: 0.85; }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-dim);
+            background: var(--surface);
+            border: 1px dashed var(--border);
+            border-radius: 10px;
+        }
+        .empty-icon { font-size: 38px; margin-bottom: 12px; }
+        .empty-state .empty-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+        .empty-state .empty-sub   { font-size: 13px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 13px; border-radius: 6px;
+            border: 1px solid transparent;
+            font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: opacity 0.12s;
+            background: none; text-decoration: none; color: inherit; white-space: nowrap;
+            -webkit-app-region: no-drag;
+        }
+        .btn:hover:not(:disabled) { opacity: 0.8; }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-secondary { background: var(--surface2); border-color: var(--border); color: var(--text); }
+        .btn-ghost { border-color: var(--border); color: var(--text-dim); }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-bar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+
+        /* Status / spinner */
+        .status-line {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: var(--text-dim); margin-bottom: 12px;
+        }
+        .spinner {
+            width: 13px; height: 13px;
+            border: 2px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.65s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Progress */
+        .prog-track {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            height: 8px; overflow: hidden; margin-bottom: 8px;
+        }
+        .prog-fill {
+            height: 100%; background: var(--accent);
+            width: 0%; transition: width 0.25s ease; border-radius: 6px;
+        }
+        .prog-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); }
+        .found-badge { color: var(--success); font-weight: 600; }
+
+        /* Geometry grid */
+        .geo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 8px; }
+        .geo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px; }
+        .geo-card-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+        .geo-card-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .fs-tag { display: inline-block; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+
+        /* Media overview grid */
+        .media-overview-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .cols-ctrl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(var(--grid-cols, 4), 1fr);
+            gap: 10px;
+        }
+        .media-card {
+            background: var(--surface); border: 2px solid var(--border);
+            border-radius: 8px; overflow: hidden; cursor: pointer;
+            transition: border-color 0.12s; outline: none;
+        }
+        .media-card:hover   { border-color: #4a4f6a; }
+        .media-card.focused { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+        .media-thumb-wrap { position: relative; aspect-ratio: 16/9; background: #111; overflow: hidden; }
+        .media-thumb {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: cover; display: block;
+        }
+        .media-thumb-ph {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: var(--text-dim);
+        }
+        .media-play-overlay {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.35); opacity: 0; transition: opacity 0.13s;
+        }
+        .media-card:hover .media-play-overlay,
+        .media-card.focused .media-play-overlay { opacity: 1; }
+        .media-play-icon {
+            width: 36px; height: 36px; background: rgba(255,255,255,0.9);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        }
+        .media-play-icon::after {
+            content: ''; display: block; width: 0; height: 0;
+            border-style: solid; border-width: 8px 0 8px 14px;
+            border-color: transparent transparent transparent #111; margin-left: 3px;
+        }
+        .media-footer { padding: 7px 9px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+        .media-num    { font-size: 11px; color: var(--text-dim); }
+        .media-size   { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+        .media-saved  { font-size: 11px; color: var(--success); font-weight: 700; }
+        .media-unsaved{ font-size: 11px; color: #ff8090; }
+
+        /* Error / permission boxes */
+        .error-box {
+            background: rgba(227,25,55,0.1); border: 1px solid rgba(227,25,55,0.3);
+            border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #ff8090; margin-top: 10px;
+        }
+        .perm-box {
+            background: rgba(240,165,0,0.07); border: 1px solid rgba(240,165,0,0.25);
+            border-radius: 8px; padding: 14px 16px; font-size: 13px; margin-top: 10px;
+        }
+        .perm-box h4 { color: var(--warn); margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+        .perm-box p  { color: var(--text-dim); margin-bottom: 6px; line-height: 1.6; }
+        .perm-box p:last-child { margin-bottom: 0; }
+        .perm-box strong { color: var(--text); }
+        .perm-box code {
+            background: rgba(255,255,255,0.07); padding: 1px 6px; border-radius: 3px;
+            font-family: 'SF Mono', monospace; font-size: 12px; color: var(--text);
+        }
+
+        /* Output folder line */
+        .output-line {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; color: var(--text-dim); margin-bottom: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 6px; padding: 7px 11px;
+        }
+        .output-label { color: var(--text-dim); white-space: nowrap; }
+        .output-path  { color: var(--success); font-family: 'SF Mono', monospace; font-size: 11px; word-break: break-all; }
+
+        /* Preview modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+        }
+        .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: 820px; width: 100%; overflow: hidden; }
+        .modal-hdr { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+        .modal-hdr h3 { font-size: 13px; font-weight: 600; }
+        .modal video { width: 100%; display: block; background: #000; max-height: 65vh; }
+        .modal-keys {
+            padding: 7px 14px;
+            font-size: 11px;
+            color: var(--text-dim);
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            text-align: center;
+            letter-spacing: 0.2px;
+        }
+
+        .lang-select {
+            margin-left: auto;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--text);
+            font-size: 12px;
+            padding: 4px 8px;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+        .lang-select:focus { outline: none; border-color: var(--accent); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<header>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e31937" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+        <line x1="12" y1="12" x2="12" y2="16"/>
+        <line x1="10" y1="14" x2="14" y2="14"/>
+    </svg>
+    <h1 data-i18n="title">Tesla Dashcam Recovery</h1>
+    <span class="badge">Desktop</span>
+    <select id="langSelect" class="lang-select" aria-label="Language">
+        <option value="en">&#x1F1EC;&#x1F1E7; English</option>
+        <option value="da">&#x1F1E9;&#x1F1F0; Dansk</option>
+        <option value="de">&#x1F1E9;&#x1F1EA; Deutsch</option>
+        <option value="fr">&#x1F1EB;&#x1F1F7; Fran&#xE7;ais</option>
+        <option value="es">&#x1F1EA;&#x1F1F8; Espa&#xF1;ol</option>
+        <option value="it">&#x1F1EE;&#x1F1F9; Italiano</option>
+        <option value="nl">&#x1F1F3;&#x1F1F1; Nederlands</option>
+        <option value="pl">&#x1F1F5;&#x1F1F1; Polski</option>
+        <option value="sv">&#x1F1F8;&#x1F1EA; Svenska</option>
+        <option value="pt">&#x1F1F5;&#x1F1F9; Portugu&#xEA;s</option>
+        <option value="no">&#x1F1F3;&#x1F1F4; Norsk</option>
+    </select>
+</header>
+
+<main>
+    <!-- Drive selector -->
+    <div class="section" id="driveSection">
+        <div class="section-header">
+            <div class="section-label" data-i18n="secDrives">Connected Drives</div>
+            <button class="btn btn-ghost btn-sm" id="refreshBtn" data-i18n="refreshBtn">&#x21BA; Refresh</button>
+        </div>
+        <div id="driveContent"></div>
+    </div>
+
+    <!-- Errors -->
+    <div class="error-box hidden" id="errorBox" role="alert"></div>
+
+    <!-- Permission help — platform-specific content pre-built, shown by JS -->
+    <div class="perm-box hidden" id="permBox" role="alert">
+        <h4>&#x26A0; <span data-i18n="permTitle">Permission Error</span></h4>
+        <div id="permMac" class="hidden">
+            <p><strong>The drive must be unmounted before scanning.</strong></p>
+            <p>In Finder, right-click the Tesla drive &#x2192; <strong>Eject</strong>, then click Scan again.
+               The drive stays physically connected — macOS releases exclusive access.</p>
+            <p>Or run in Terminal: <code>diskutil unmountDisk /dev/diskN</code></p>
+        </div>
+        <div id="permLinux" class="hidden">
+            <p><strong>Raw device access requires elevated permissions.</strong></p>
+            <p>Run with: <code>sudo teslacam-recovery</code></p>
+            <p>Or add your user to the disk group, then log out and back in:<br>
+               <code>sudo usermod -aG disk $USER</code></p>
+        </div>
+        <div id="permWin" class="hidden">
+            <p><strong>Raw device access requires Administrator privileges.</strong></p>
+            <p>Right-click <strong>TeslaCam Recovery</strong> &#x2192; <strong>Run as administrator</strong>, then try again.</p>
+        </div>
+    </div>
+
+    <!-- Geometry -->
+    <div class="section hidden" id="geoSection">
+        <div class="section-label" data-i18n="secGeometry">Filesystem Geometry</div>
+        <div class="geo-grid" id="geoGrid"></div>
+    </div>
+
+    <!-- Progress -->
+    <div class="section hidden" id="progressSection">
+        <div class="section-label" data-i18n="secProgress">Scan Progress</div>
+        <div class="output-line hidden" id="outputLine">
+            <span class="output-label" data-i18n="outputLabel">Saving to</span>
+            <span class="output-path" id="outputPath"></span>
+        </div>
+        <div class="status-line">
+            <div class="spinner" id="spinner" aria-hidden="true"></div>
+            <span id="statusText">Initializing&#x2026;</span>
+        </div>
+        <div class="prog-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progBar">
+            <div class="prog-fill" id="progFill"></div>
+        </div>
+        <div class="prog-meta">
+            <span id="progDetail">&#x2014;</span>
+            <span><span class="found-badge" id="foundCount">0</span> <span data-i18n="filesFound">files found</span></span>
+        </div>
+        <div class="btn-bar">
+            <button class="btn btn-ghost btn-sm" id="cancelBtn" data-i18n="cancelBtn">Cancel</button>
+        </div>
+        <!-- Shown only when unmount fails -->
+        <div class="btn-bar hidden" id="retryBar">
+            <button class="btn btn-secondary btn-sm" id="retryBtn" data-i18n="retryBtn">Try again</button>
+            <button class="btn btn-ghost btn-sm" id="backFromRetryBtn" data-i18n="backBtn">&#x2190; Back to drives</button>
+        </div>
+    </div>
+
+    <!-- Results — media grid overview -->
+    <div class="section hidden" id="resultsSection">
+        <div class="media-overview-hdr">
+            <div class="section-label" id="resultsLabel" data-i18n="secResults">Recovered Files</div>
+            <div class="cols-ctrl">
+                <span data-i18n="colsLabel">Columns</span>
+                <button class="btn btn-ghost btn-sm" id="colsMinus" aria-label="Fewer columns">&#x2212;</button>
+                <span id="colsVal">4</span>
+                <button class="btn btn-ghost btn-sm" id="colsPlus" aria-label="More columns">&#x2B;</button>
+            </div>
+        </div>
+        <div class="btn-bar" style="margin-top:0;margin-bottom:10px;">
+            <button class="btn btn-ghost btn-sm hidden" id="scanAnotherBtn" data-i18n="scanAnotherBtn">&#x2190; Scan another drive</button>
+        </div>
+        <div class="media-grid" id="mediaGrid"></div>
+    </div>
+</main>
+
+<!-- Preview modal -->
+<div class="modal-overlay hidden" id="previewModal" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+    <div class="modal">
+        <div class="modal-hdr">
+            <h3 id="previewTitle">Preview</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-ghost btn-sm hidden" id="saveClipBtn" data-i18n="btnDownload">Save</button>
+                <button class="btn btn-ghost btn-sm hidden" id="showInFolderBtn"></button>
+                <button class="btn btn-ghost btn-sm" id="closePreview" data-i18n="previewClose">Close</button>
+            </div>
+        </div>
+        <video id="previewVideo" controls playsinline></video>
+        <div class="modal-keys" data-i18n="modalKeys">&#x2190; &#x2192; skip 10s &nbsp;&middot;&nbsp; &#x2191; &#x2193; prev / next &nbsp;&middot;&nbsp; Space play / pause</div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// ── i18n ───────────────────────────────────────────────────────────────────────
+const STRINGS = {
+    en: { title:'Tesla Dashcam Recovery', secDrives:'Connected Drives', refreshBtn:'&#x21BA; Refresh',
+          detectingDrives:'Detecting drives\u2026', noDrivesFound:'No removable drives detected',
+          noDrivesSub:'Plug in your Tesla dashcam USB drive, then click Refresh.',
+          errListDrives:'Could not list drives', scanDriveBtn:'Scan Drive',
+          secGeometry:'Filesystem Geometry', secProgress:'Scan Progress', outputLabel:'Saving to',
+          statusInit:'Initializing\u2026', statusUnmounting:'Unmounting drive\u2026',
+          statusChooseFolder:'Choose a folder to save recovered files\u2026',
+          statusDone:'Scan complete', statusCancelled:'Scan cancelled', statusUnmountFailed:'Unmount failed',
+          filesFound:'files found', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} clip recovered', progSummaryN:'{0} clips recovered',
+          cancelBtn:'Cancel', retryBtn:'Try again', backBtn:'&#x2190; Back to drives',
+          scanAnotherBtn:'&#x2190; Scan another drive',
+          secResults:'Recovered Files', secResultsCount:'Recovered Files ({0})',
+          colsLabel:'Columns',
+          btnDownload:'Save', btnPreview:'Preview',
+          btnSaveFailed:'\u26A0 Save', btnSaveFailedTitle:'\u26A0 Auto-save failed \u2014 click to save manually',
+          savedOk:'\u2713 Saved', previewTitle:'Preview', previewClose:'Close',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Permission Error',
+          geoFilesystem:'Filesystem', geoBytesPerSector:'Bytes / Sector',
+          geoSectorsPerCluster:'Sectors / Cluster', geoClusterSize:'Cluster Size',
+          geoTotalClusters:'Total Clusters', geoTotalSectors:'Total Sectors',
+          geoReservedSectors:'Reserved Sectors', geoSectorsPerFAT:'Sectors / FAT',
+          showInFinder:'Show in Finder', showInExplorer:'Show in Explorer', showInFiles:'Show in Files',
+          modalKeys:'\u2190 \u2192 skip 10s\u00A0\u00B7\u00A0\u2191 \u2193 prev / next\u00A0\u00B7\u00A0Space play / pause' },
+    da: { title:'Tesla Dashcam Gendannelse', secDrives:'Tilsluttede drev', refreshBtn:'&#x21BA; Opdater',
+          detectingDrives:'Registrerer drev\u2026', noDrivesFound:'Ingen flytbare drev registreret',
+          noDrivesSub:'Tilslut dit Tesla dashcam USB-drev, og klik p\u00E5 Opdater.',
+          errListDrives:'Kunne ikke liste drev', scanDriveBtn:'Scan drev',
+          secGeometry:'Filsystem-geometri', secProgress:'Scanningsfremdrift', outputLabel:'Gemmer i',
+          statusInit:'Initialiserer\u2026', statusUnmounting:'Afmonterer drev\u2026',
+          statusChooseFolder:'V\u00E6lg en mappe til gendannede filer\u2026',
+          statusDone:'Scanning f\u00E6rdig', statusCancelled:'Scanning annulleret', statusUnmountFailed:'Afmontering mislykkedes',
+          filesFound:'filer fundet', progDetail:'Klynge {0} / {1}',
+          progSummary1:'{0} klip gendannet', progSummaryN:'{0} klip gendannet',
+          cancelBtn:'Annuller', retryBtn:'Pr\u00F8v igen', backBtn:'&#x2190; Tilbage til drev',
+          scanAnotherBtn:'&#x2190; Scan et andet drev',
+          secResults:'Gendannede filer', secResultsCount:'Gendannede filer ({0})',
+          colsLabel:'Kolonner',
+          btnDownload:'Gem', btnPreview:'Forh\u00E5ndsvis',
+          btnSaveFailed:'\u26A0 Gem', btnSaveFailedTitle:'\u26A0 Automatisk gem mislykkedes \u2014 klik for at gemme manuelt',
+          savedOk:'\u2713 Gemt', previewTitle:'Forh\u00E5ndsvisning', previewClose:'Luk',
+          previewClipTitle:'Klip #{0} \u2014 {1}', permTitle:'Adgangsfejl',
+          geoFilesystem:'Filsystem', geoBytesPerSector:'Bytes / Sektor',
+          geoSectorsPerCluster:'Sektorer / Klynge', geoClusterSize:'Klyngest\u00F8rrelse',
+          geoTotalClusters:'Klynger i alt', geoTotalSectors:'Sektorer i alt',
+          geoReservedSectors:'Reserverede sektorer', geoSectorsPerFAT:'Sektorer / FAT',
+          showInFinder:'Vis i Finder', showInExplorer:'Vis i Stifinder', showInFiles:'Vis i filer',
+          modalKeys:'\u2190 \u2192 spring 10s\u00A0\u00B7\u00A0\u2191 \u2193 forrige / n\u00E6ste\u00A0\u00B7\u00A0Mellemrum afspil / pause' },
+    de: { title:'Tesla Dashcam-Wiederherstellung', secDrives:'Angeschlossene Laufwerke', refreshBtn:'&#x21BA; Aktualisieren',
+          detectingDrives:'Laufwerke werden erkannt\u2026', noDrivesFound:'Keine Wechseldatentr\u00E4ger erkannt',
+          noDrivesSub:'Schlie\u00DFen Sie Ihr Tesla-Dashcam-USB-Laufwerk an und klicken Sie auf Aktualisieren.',
+          errListDrives:'Laufwerke konnten nicht aufgelistet werden', scanDriveBtn:'Laufwerk scannen',
+          secGeometry:'Dateisystem-Geometrie', secProgress:'Scan-Fortschritt', outputLabel:'Speichern in',
+          statusInit:'Initialisierung\u2026', statusUnmounting:'Laufwerk wird ausgeworfen\u2026',
+          statusChooseFolder:'Ordner f\u00FCr wiederhergestellte Dateien ausw\u00E4hlen\u2026',
+          statusDone:'Scan abgeschlossen', statusCancelled:'Scan abgebrochen', statusUnmountFailed:'Auswerfen fehlgeschlagen',
+          filesFound:'Dateien gefunden', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} Clip wiederhergestellt', progSummaryN:'{0} Clips wiederhergestellt',
+          cancelBtn:'Abbrechen', retryBtn:'Erneut versuchen', backBtn:'&#x2190; Zur\u00FCck zu Laufwerken',
+          scanAnotherBtn:'&#x2190; Anderes Laufwerk scannen',
+          secResults:'Wiederhergestellte Dateien', secResultsCount:'Wiederhergestellte Dateien ({0})',
+          colsLabel:'Spalten',
+          btnDownload:'Speichern', btnPreview:'Vorschau',
+          btnSaveFailed:'\u26A0 Speichern', btnSaveFailedTitle:'\u26A0 Automatisches Speichern fehlgeschlagen \u2014 zum manuellen Speichern klicken',
+          savedOk:'\u2713 Gespeichert', previewTitle:'Vorschau', previewClose:'Schlie\u00DFen',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Berechtigungsfehler',
+          geoFilesystem:'Dateisystem', geoBytesPerSector:'Bytes / Sektor',
+          geoSectorsPerCluster:'Sektoren / Cluster', geoClusterSize:'Clustergr\u00F6\u00DFe',
+          geoTotalClusters:'Cluster gesamt', geoTotalSectors:'Sektoren gesamt',
+          geoReservedSectors:'Reservierte Sektoren', geoSectorsPerFAT:'Sektoren / FAT',
+          showInFinder:'Im Finder zeigen', showInExplorer:'Im Explorer zeigen', showInFiles:'In Dateien zeigen',
+          modalKeys:'\u2190 \u2192 10s springen\u00A0\u00B7\u00A0\u2191 \u2193 vorherige / n\u00E4chste\u00A0\u00B7\u00A0Leertaste Wiedergabe / Pause' },
+    fr: { title:'R\u00E9cup\u00E9ration Tesla Dashcam', secDrives:'Lecteurs connect\u00E9s', refreshBtn:'&#x21BA; Actualiser',
+          detectingDrives:'D\u00E9tection des lecteurs\u2026', noDrivesFound:'Aucun lecteur amovible d\u00E9tect\u00E9',
+          noDrivesSub:'Branchez votre cl\u00E9 USB Tesla dashcam, puis cliquez sur Actualiser.',
+          errListDrives:'Impossible de lister les lecteurs', scanDriveBtn:'Scanner le lecteur',
+          secGeometry:'G\u00E9om\u00E9trie du syst\u00E8me de fichiers', secProgress:'Progression du scan', outputLabel:'Enregistrement dans',
+          statusInit:'Initialisation\u2026', statusUnmounting:'D\u00E9montage du lecteur\u2026',
+          statusChooseFolder:'Choisir un dossier pour les fichiers r\u00E9cup\u00E9r\u00E9s\u2026',
+          statusDone:'Scan termin\u00E9', statusCancelled:'Scan annul\u00E9', statusUnmountFailed:'\u00C9chec du d\u00E9montage',
+          filesFound:'fichiers trouv\u00E9s', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} clip r\u00E9cup\u00E9r\u00E9', progSummaryN:'{0} clips r\u00E9cup\u00E9r\u00E9s',
+          cancelBtn:'Annuler', retryBtn:'R\u00E9essayer', backBtn:'&#x2190; Retour aux lecteurs',
+          scanAnotherBtn:'&#x2190; Scanner un autre lecteur',
+          secResults:'Fichiers r\u00E9cup\u00E9r\u00E9s', secResultsCount:'Fichiers r\u00E9cup\u00E9r\u00E9s ({0})',
+          colsLabel:'Colonnes',
+          btnDownload:'Sauvegarder', btnPreview:'Aper\u00E7u',
+          btnSaveFailed:'\u26A0 Sauvegarder', btnSaveFailedTitle:'\u26A0 Sauvegarde automatique \u00E9chou\u00E9e \u2014 cliquez pour sauvegarder manuellement',
+          savedOk:'\u2713 Sauvegard\u00E9', previewTitle:'Aper\u00E7u', previewClose:'Fermer',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Erreur de permission',
+          geoFilesystem:'Syst\u00E8me de fichiers', geoBytesPerSector:'Octets / Secteur',
+          geoSectorsPerCluster:'Secteurs / Cluster', geoClusterSize:'Taille du cluster',
+          geoTotalClusters:'Clusters totaux', geoTotalSectors:'Secteurs totaux',
+          geoReservedSectors:'Secteurs r\u00E9serv\u00E9s', geoSectorsPerFAT:'Secteurs / FAT',
+          showInFinder:'Afficher dans le Finder', showInExplorer:"Afficher dans l'Explorateur", showInFiles:'Afficher dans les fichiers',
+          modalKeys:'\u2190 \u2192 sauter 10s\u00A0\u00B7\u00A0\u2191 \u2193 pr\u00E9c. / suiv.\u00A0\u00B7\u00A0Espace lecture / pause' },
+    es: { title:'Recuperaci\u00F3n Tesla Dashcam', secDrives:'Unidades conectadas', refreshBtn:'&#x21BA; Actualizar',
+          detectingDrives:'Detectando unidades\u2026', noDrivesFound:'No se detectaron unidades extra\u00EDbles',
+          noDrivesSub:'Conecte su unidad USB de Tesla dashcam y haga clic en Actualizar.',
+          errListDrives:'No se pudieron listar las unidades', scanDriveBtn:'Escanear unidad',
+          secGeometry:'Geometr\u00EDa del sistema de archivos', secProgress:'Progreso del escaneo', outputLabel:'Guardando en',
+          statusInit:'Inicializando\u2026', statusUnmounting:'Desmontando unidad\u2026',
+          statusChooseFolder:'Elige una carpeta para los archivos recuperados\u2026',
+          statusDone:'Escaneo completo', statusCancelled:'Escaneo cancelado', statusUnmountFailed:'Error al desmontar',
+          filesFound:'archivos encontrados', progDetail:'Cl\u00FAster {0} / {1}',
+          progSummary1:'{0} clip recuperado', progSummaryN:'{0} clips recuperados',
+          cancelBtn:'Cancelar', retryBtn:'Intentar de nuevo', backBtn:'&#x2190; Volver a unidades',
+          scanAnotherBtn:'&#x2190; Escanear otra unidad',
+          secResults:'Archivos recuperados', secResultsCount:'Archivos recuperados ({0})',
+          colsLabel:'Columnas',
+          btnDownload:'Guardar', btnPreview:'Vista previa',
+          btnSaveFailed:'\u26A0 Guardar', btnSaveFailedTitle:'\u26A0 Guardado autom\u00E1tico fallido \u2014 haga clic para guardar manualmente',
+          savedOk:'\u2713 Guardado', previewTitle:'Vista previa', previewClose:'Cerrar',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Error de permisos',
+          geoFilesystem:'Sistema de archivos', geoBytesPerSector:'Bytes / Sector',
+          geoSectorsPerCluster:'Sectores / Cl\u00FAster', geoClusterSize:'Tama\u00F1o de cl\u00FAster',
+          geoTotalClusters:'Cl\u00FAsteres totales', geoTotalSectors:'Sectores totales',
+          geoReservedSectors:'Sectores reservados', geoSectorsPerFAT:'Sectores / FAT',
+          showInFinder:'Mostrar en Finder', showInExplorer:'Mostrar en Explorador', showInFiles:'Mostrar en archivos',
+          modalKeys:'\u2190 \u2192 saltar 10s\u00A0\u00B7\u00A0\u2191 \u2193 ant. / sig.\u00A0\u00B7\u00A0Espacio reproducir / pausa' },
+    it: { title:'Recupero Tesla Dashcam', secDrives:'Unit\u00E0 collegate', refreshBtn:'&#x21BA; Aggiorna',
+          detectingDrives:'Rilevamento unit\u00E0\u2026', noDrivesFound:'Nessuna unit\u00E0 rimovibile rilevata',
+          noDrivesSub:'Collega la tua chiavetta USB Tesla dashcam, poi clicca Aggiorna.',
+          errListDrives:'Impossibile elencare le unit\u00E0', scanDriveBtn:'Scansiona unit\u00E0',
+          secGeometry:'Geometria del filesystem', secProgress:'Avanzamento scansione', outputLabel:'Salvataggio in',
+          statusInit:'Inizializzazione\u2026', statusUnmounting:'Smontaggio unit\u00E0\u2026',
+          statusChooseFolder:'Scegli una cartella per i file recuperati\u2026',
+          statusDone:'Scansione completata', statusCancelled:'Scansione annullata', statusUnmountFailed:'Smontaggio fallito',
+          filesFound:'file trovati', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} clip recuperata', progSummaryN:'{0} clip recuperate',
+          cancelBtn:'Annulla', retryBtn:'Riprova', backBtn:'&#x2190; Torna alle unit\u00E0',
+          scanAnotherBtn:'&#x2190; Scansiona un\'altra unit\u00E0',
+          secResults:'File recuperati', secResultsCount:'File recuperati ({0})',
+          colsLabel:'Colonne',
+          btnDownload:'Salva', btnPreview:'Anteprima',
+          btnSaveFailed:'\u26A0 Salva', btnSaveFailedTitle:'\u26A0 Salvataggio automatico fallito \u2014 clicca per salvare manualmente',
+          savedOk:'\u2713 Salvato', previewTitle:'Anteprima', previewClose:'Chiudi',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Errore di permesso',
+          geoFilesystem:'Filesystem', geoBytesPerSector:'Byte / Settore',
+          geoSectorsPerCluster:'Settori / Cluster', geoClusterSize:'Dimensione cluster',
+          geoTotalClusters:'Cluster totali', geoTotalSectors:'Settori totali',
+          geoReservedSectors:'Settori riservati', geoSectorsPerFAT:'Settori / FAT',
+          showInFinder:'Mostra nel Finder', showInExplorer:"Mostra nell'Explorer", showInFiles:'Mostra nei file',
+          modalKeys:'\u2190 \u2192 salta 10s\u00A0\u00B7\u00A0\u2191 \u2193 prec. / succ.\u00A0\u00B7\u00A0Spazio riproduci / pausa' },
+    nl: { title:'Tesla Dashcam Herstel', secDrives:'Verbonden schijven', refreshBtn:'&#x21BA; Vernieuwen',
+          detectingDrives:'Schijven detecteren\u2026', noDrivesFound:'Geen verwisselbare schijven gevonden',
+          noDrivesSub:'Sluit uw Tesla dashcam USB-schijf aan en klik op Vernieuwen.',
+          errListDrives:'Schijven kunnen niet worden weergegeven', scanDriveBtn:'Schijf scannen',
+          secGeometry:'Bestandssysteemgeometrie', secProgress:'Scanvoortgang', outputLabel:'Opslaan in',
+          statusInit:'Initialiseren\u2026', statusUnmounting:'Schijf ontkoppelen\u2026',
+          statusChooseFolder:'Kies een map voor herstelde bestanden\u2026',
+          statusDone:'Scan voltooid', statusCancelled:'Scan geannuleerd', statusUnmountFailed:'Ontkoppelen mislukt',
+          filesFound:'bestanden gevonden', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} clip hersteld', progSummaryN:'{0} clips hersteld',
+          cancelBtn:'Annuleren', retryBtn:'Opnieuw proberen', backBtn:'&#x2190; Terug naar schijven',
+          scanAnotherBtn:'&#x2190; Andere schijf scannen',
+          secResults:'Herstelde bestanden', secResultsCount:'Herstelde bestanden ({0})',
+          colsLabel:'Kolommen',
+          btnDownload:'Opslaan', btnPreview:'Voorbeeld',
+          btnSaveFailed:'\u26A0 Opslaan', btnSaveFailedTitle:'\u26A0 Automatisch opslaan mislukt \u2014 klik om handmatig op te slaan',
+          savedOk:'\u2713 Opgeslagen', previewTitle:'Voorbeeld', previewClose:'Sluiten',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Toestemmingsfout',
+          geoFilesystem:'Bestandssysteem', geoBytesPerSector:'Bytes / Sector',
+          geoSectorsPerCluster:'Sectoren / Cluster', geoClusterSize:'Clustergrootte',
+          geoTotalClusters:'Totaal clusters', geoTotalSectors:'Totaal sectoren',
+          geoReservedSectors:'Gereserveerde sectoren', geoSectorsPerFAT:'Sectoren / FAT',
+          showInFinder:'Tonen in Finder', showInExplorer:'Tonen in Verkenner', showInFiles:'Tonen in bestanden',
+          modalKeys:'\u2190 \u2192 sla 10s over\u00A0\u00B7\u00A0\u2191 \u2193 vorige / volgende\u00A0\u00B7\u00A0Spatie afspelen / pauze' },
+    pl: { title:'Odzyskiwanie Tesla Dashcam', secDrives:'Pod\u0142\u0105czone dyski', refreshBtn:'&#x21BA; Od\u015Bwie\u017C',
+          detectingDrives:'Wykrywanie dysk\u00F3w\u2026', noDrivesFound:'Nie wykryto no\u015Bnik\u00F3w wymiennych',
+          noDrivesSub:'Pod\u0142\u0105cz dysk USB Tesla dashcam i kliknij Od\u015Bwie\u017C.',
+          errListDrives:'Nie mo\u017Cna wymieni\u0107 dysk\u00F3w', scanDriveBtn:'Skanuj dysk',
+          secGeometry:'Geometria systemu plik\u00F3w', secProgress:'Post\u0119p skanowania', outputLabel:'Zapisywanie do',
+          statusInit:'Inicjalizacja\u2026', statusUnmounting:'Odmontowywanie dysku\u2026',
+          statusChooseFolder:'Wybierz folder dla odzyskanych plik\u00F3w\u2026',
+          statusDone:'Skanowanie zako\u0144czone', statusCancelled:'Skanowanie anulowane', statusUnmountFailed:'Odmontowanie nie powiod\u0142o si\u0119',
+          filesFound:'znalezionych plik\u00F3w', progDetail:'Klaster {0} / {1}',
+          progSummary1:'Odzyskano {0} klip', progSummaryN:'Odzyskano {0} klip\u00F3w',
+          cancelBtn:'Anuluj', retryBtn:'Spr\u00F3buj ponownie', backBtn:'&#x2190; Powr\u00F3t do dysk\u00F3w',
+          scanAnotherBtn:'&#x2190; Skanuj inny dysk',
+          secResults:'Odzyskane pliki', secResultsCount:'Odzyskane pliki ({0})',
+          colsLabel:'Kolumny',
+          btnDownload:'Zapisz', btnPreview:'Podgl\u0105d',
+          btnSaveFailed:'\u26A0 Zapisz', btnSaveFailedTitle:'\u26A0 Automatyczny zapis nie powi\u00F3d\u0142 si\u0119 \u2014 kliknij, aby zapisa\u0107 r\u0119cznie',
+          savedOk:'\u2713 Zapisano', previewTitle:'Podgl\u0105d', previewClose:'Zamknij',
+          previewClipTitle:'Klip #{0} \u2014 {1}', permTitle:'B\u0142\u0105d uprawnie\u0144',
+          geoFilesystem:'System plik\u00F3w', geoBytesPerSector:'Bajty / Sektor',
+          geoSectorsPerCluster:'Sektory / Klaster', geoClusterSize:'Rozmiar klastra',
+          geoTotalClusters:'Klastry \u0142\u0105cznie', geoTotalSectors:'Sektory \u0142\u0105cznie',
+          geoReservedSectors:'Zarezerwowane sektory', geoSectorsPerFAT:'Sektory / FAT',
+          showInFinder:'Poka\u017C w Finderze', showInExplorer:'Poka\u017C w Eksploratorze', showInFiles:'Poka\u017C w plikach',
+          modalKeys:'\u2190 \u2192 przeskocz 10s\u00A0\u00B7\u00A0\u2191 \u2193 poprz. / nast.\u00A0\u00B7\u00A0Spacja odtw\u00F3rz / pauza' },
+    sv: { title:'Tesla Dashcam \u00C5terst\u00E4llning', secDrives:'Anslutna enheter', refreshBtn:'&#x21BA; Uppdatera',
+          detectingDrives:'Identifierar enheter\u2026', noDrivesFound:'Inga flyttbara enheter hittades',
+          noDrivesSub:'Anslut din Tesla dashcam USB-enhet och klicka p\u00E5 Uppdatera.',
+          errListDrives:'Kunde inte lista enheter', scanDriveBtn:'Skanna enhet',
+          secGeometry:'Filsystemsgeometri', secProgress:'Skanningsf\u00F6rlopp', outputLabel:'Sparar till',
+          statusInit:'Initierar\u2026', statusUnmounting:'Avmonterar enhet\u2026',
+          statusChooseFolder:'V\u00E4lj en mapp f\u00F6r \u00E5terst\u00E4llda filer\u2026',
+          statusDone:'Skanning klar', statusCancelled:'Skanning avbruten', statusUnmountFailed:'Avmontering misslyckades',
+          filesFound:'filer hittade', progDetail:'Kluster {0} / {1}',
+          progSummary1:'{0} klipp \u00E5terst\u00E4llt', progSummaryN:'{0} klipp \u00E5terst\u00E4llda',
+          cancelBtn:'Avbryt', retryBtn:'F\u00F6rs\u00F6k igen', backBtn:'&#x2190; Tillbaka till enheter',
+          scanAnotherBtn:'&#x2190; Skanna en annan enhet',
+          secResults:'\u00C5terst\u00E4llda filer', secResultsCount:'\u00C5terst\u00E4llda filer ({0})',
+          colsLabel:'Kolumner',
+          btnDownload:'Spara', btnPreview:'F\u00F6rhandsgranskning',
+          btnSaveFailed:'\u26A0 Spara', btnSaveFailedTitle:'\u26A0 Automatisk sparning misslyckades \u2014 klicka f\u00F6r att spara manuellt',
+          savedOk:'\u2713 Sparat', previewTitle:'F\u00F6rhandsgranskning', previewClose:'St\u00E4ng',
+          previewClipTitle:'Klipp #{0} \u2014 {1}', permTitle:'Beh\u00F6righetsfel',
+          geoFilesystem:'Filsystem', geoBytesPerSector:'Bytes / Sektor',
+          geoSectorsPerCluster:'Sektorer / Kluster', geoClusterSize:'Klusterstorlek',
+          geoTotalClusters:'Totalt kluster', geoTotalSectors:'Totalt sektorer',
+          geoReservedSectors:'Reserverade sektorer', geoSectorsPerFAT:'Sektorer / FAT',
+          showInFinder:'Visa i Finder', showInExplorer:'Visa i Utforskaren', showInFiles:'Visa i filer',
+          modalKeys:'\u2190 \u2192 hoppa 10s\u00A0\u00B7\u00A0\u2191 \u2193 f\u00F6reg. / n\u00E4sta\u00A0\u00B7\u00A0Mellanslag spela / pausa' },
+    pt: { title:'Recupera\u00E7\u00E3o Tesla Dashcam', secDrives:'Unidades conectadas', refreshBtn:'&#x21BA; Atualizar',
+          detectingDrives:'Detetando unidades\u2026', noDrivesFound:'Nenhuma unidade remov\u00EDvel detetada',
+          noDrivesSub:'Ligue a sua unidade USB Tesla dashcam e clique em Atualizar.',
+          errListDrives:'N\u00E3o foi poss\u00EDvel listar as unidades', scanDriveBtn:'Analisar unidade',
+          secGeometry:'Geometria do sistema de ficheiros', secProgress:'Progresso da an\u00E1lise', outputLabel:'A guardar em',
+          statusInit:'A inicializar\u2026', statusUnmounting:'A desmontar unidade\u2026',
+          statusChooseFolder:'Escolha uma pasta para os ficheiros recuperados\u2026',
+          statusDone:'An\u00E1lise conclu\u00EDda', statusCancelled:'An\u00E1lise cancelada', statusUnmountFailed:'Falha ao desmontar',
+          filesFound:'ficheiros encontrados', progDetail:'Cluster {0} / {1}',
+          progSummary1:'{0} clip recuperado', progSummaryN:'{0} clips recuperados',
+          cancelBtn:'Cancelar', retryBtn:'Tentar novamente', backBtn:'&#x2190; Voltar \u00E0s unidades',
+          scanAnotherBtn:'&#x2190; Analisar outra unidade',
+          secResults:'Ficheiros recuperados', secResultsCount:'Ficheiros recuperados ({0})',
+          colsLabel:'Colunas',
+          btnDownload:'Guardar', btnPreview:'Pr\u00E9-visualizar',
+          btnSaveFailed:'\u26A0 Guardar', btnSaveFailedTitle:'\u26A0 Guardar autom\u00E1tico falhou \u2014 clique para guardar manualmente',
+          savedOk:'\u2713 Guardado', previewTitle:'Pr\u00E9-visualiza\u00E7\u00E3o', previewClose:'Fechar',
+          previewClipTitle:'Clip #{0} \u2014 {1}', permTitle:'Erro de permiss\u00E3o',
+          geoFilesystem:'Sistema de ficheiros', geoBytesPerSector:'Bytes / Setor',
+          geoSectorsPerCluster:'Setores / Cluster', geoClusterSize:'Tamanho do cluster',
+          geoTotalClusters:'Clusters totais', geoTotalSectors:'Setores totais',
+          geoReservedSectors:'Setores reservados', geoSectorsPerFAT:'Setores / FAT',
+          showInFinder:'Mostrar no Finder', showInExplorer:'Mostrar no Explorador', showInFiles:'Mostrar nos ficheiros',
+          modalKeys:'\u2190 \u2192 saltar 10s\u00A0\u00B7\u00A0\u2191 \u2193 ant. / pr\u00F3x.\u00A0\u00B7\u00A0Espa\u00E7o reproduzir / pausar' },
+    no: { title:'Tesla Dashcam Gjenoppretting', secDrives:'Tilkoblede stasjoner', refreshBtn:'&#x21BA; Oppdater',
+          detectingDrives:'Oppdager stasjoner\u2026', noDrivesFound:'Ingen flyttbare stasjoner oppdaget',
+          noDrivesSub:'Koble til Tesla dashcam USB-stasjonen og klikk p\u00E5 Oppdater.',
+          errListDrives:'Kunne ikke liste opp stasjoner', scanDriveBtn:'Skann stasjon',
+          secGeometry:'Filsystemgeometri', secProgress:'Skannefremdrift', outputLabel:'Lagrer til',
+          statusInit:'Initialiserer\u2026', statusUnmounting:'Avmonterer stasjon\u2026',
+          statusChooseFolder:'Velg en mappe for gjenopprettede filer\u2026',
+          statusDone:'Skanning fullf\u00F8rt', statusCancelled:'Skanning avbrutt', statusUnmountFailed:'Avmontering mislyktes',
+          filesFound:'filer funnet', progDetail:'Klynge {0} / {1}',
+          progSummary1:'{0} klipp gjenopprettet', progSummaryN:'{0} klipp gjenopprettet',
+          cancelBtn:'Avbryt', retryBtn:'Pr\u00F8v igjen', backBtn:'&#x2190; Tilbake til stasjoner',
+          scanAnotherBtn:'&#x2190; Skann en annen stasjon',
+          secResults:'Gjenopprettede filer', secResultsCount:'Gjenopprettede filer ({0})',
+          colsLabel:'Kolonner',
+          btnDownload:'Lagre', btnPreview:'Forh\u00E5ndsvisning',
+          btnSaveFailed:'\u26A0 Lagre', btnSaveFailedTitle:'\u26A0 Automatisk lagring mislyktes \u2014 klikk for \u00E5 lagre manuelt',
+          savedOk:'\u2713 Lagret', previewTitle:'Forh\u00E5ndsvisning', previewClose:'Lukk',
+          previewClipTitle:'Klipp #{0} \u2014 {1}', permTitle:'Tillatelsefeil',
+          geoFilesystem:'Filsystem', geoBytesPerSector:'Bytes / Sektor',
+          geoSectorsPerCluster:'Sektorer / Klynge', geoClusterSize:'Klyngest\u00F8rrelse',
+          geoTotalClusters:'Totalt klynger', geoTotalSectors:'Totalt sektorer',
+          geoReservedSectors:'Reserverte sektorer', geoSectorsPerFAT:'Sektorer / FAT',
+          showInFinder:'Vis i Finder', showInExplorer:'Vis i Utforsker', showInFiles:'Vis i filer',
+          modalKeys:'\u2190 \u2192 hopp 10s\u00A0\u00B7\u00A0\u2191 \u2193 forrige / neste\u00A0\u00B7\u00A0Mellomrom spill / pause' },
+};
+
+let currentLang = 'en';
+let finalCount   = null;
+
+function t(key, ...args) {
+    const s = (STRINGS[currentLang] || STRINGS.en)[key] ?? STRINGS.en[key] ?? key;
+    return String(s).replace(/\{(\d+)\}/g, (_, i) => args[+i] !== undefined ? args[+i] : '');
+}
+
+function applyLang(code) {
+    currentLang = STRINGS[code] ? code : 'en';
+    localStorage.setItem('lang', currentLang);
+    const sel = document.getElementById('langSelect');
+    if (sel) sel.value = currentLang;
+    document.documentElement.lang = currentLang;
+    document.title = t('title');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.innerHTML = t(el.dataset.i18n);
+    });
+    // Results label: re-apply count when scan is done
+    if (finalCount !== null) {
+        resultsLabel.removeAttribute('data-i18n');
+        resultsLabel.textContent = t('secResultsCount', finalCount.toLocaleString());
+    }
+    // Preview title: clip title when modal is open, generic title when closed
+    if (!previewModal.classList.contains('hidden') && currentPreviewIdx >= 0) {
+        const { size } = clips[currentPreviewIdx];
+        previewTitle.textContent = t('previewClipTitle', currentPreviewIdx + 1, fmtBytes(size));
+    } else {
+        previewTitle.textContent = t('previewTitle');
+    }
+    // "Show in Finder/Explorer/Files" button text
+    if (!showInFolderBtn.classList.contains('hidden')) {
+        showInFolderBtn.textContent = openLocationLabel();
+    }
+    // Re-render drive cards (updates "Scan Drive" button and empty-state text)
+    if (lastDrives !== null && !driveSection.classList.contains('hidden')) {
+        renderDrives(lastDrives);
+    }
+    // Re-render geometry labels
+    if (srcGeo && !geoSection.classList.contains('hidden')) {
+        renderGeometry(srcGeo);
+    }
+}
+
+const api = window.electronAPI;
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let srcDevicePath = null;
+let srcOutputDir  = null;
+let srcGeo        = null;
+let lastDrives    = null;
+let currentDrive  = null;
+let gridFocusIdx  = -1;
+let gridCols      = 4;
+const clips       = [];
+
+// ── DOM refs ───────────────────────────────────────────────────────────────────
+const driveSection    = document.getElementById('driveSection');
+const driveContent    = document.getElementById('driveContent');
+const refreshBtn      = document.getElementById('refreshBtn');
+const langSelect      = document.getElementById('langSelect');
+const errorBox        = document.getElementById('errorBox');
+const permBox         = document.getElementById('permBox');
+const geoSection      = document.getElementById('geoSection');
+const geoGrid         = document.getElementById('geoGrid');
+const progressSection = document.getElementById('progressSection');
+const outputLine      = document.getElementById('outputLine');
+const outputPath      = document.getElementById('outputPath');
+const spinner         = document.getElementById('spinner');
+const statusText      = document.getElementById('statusText');
+const progBar         = document.getElementById('progBar');
+const progFill        = document.getElementById('progFill');
+const progDetail      = document.getElementById('progDetail');
+const foundCount      = document.getElementById('foundCount');
+const cancelBtn       = document.getElementById('cancelBtn');
+const retryBar        = document.getElementById('retryBar');
+const retryBtn        = document.getElementById('retryBtn');
+const backFromRetryBtn= document.getElementById('backFromRetryBtn');
+const resultsSection  = document.getElementById('resultsSection');
+const resultsLabel    = document.getElementById('resultsLabel');
+const mediaGrid       = document.getElementById('mediaGrid');
+const scanAnotherBtn  = document.getElementById('scanAnotherBtn');
+const colsMinus       = document.getElementById('colsMinus');
+const colsPlus        = document.getElementById('colsPlus');
+const colsVal         = document.getElementById('colsVal');
+const previewModal    = document.getElementById('previewModal');
+const previewVideo    = document.getElementById('previewVideo');
+const previewTitle    = document.getElementById('previewTitle');
+const closePreviewBtn = document.getElementById('closePreview');
+const showInFolderBtn = document.getElementById('showInFolderBtn');
+const saveClipBtn     = document.getElementById('saveClipBtn');
+
+// ── Drive listing ──────────────────────────────────────────────────────────────
+async function loadDrives() {
+    setDriveContent(makeEmptyState('\u23F3', t('detectingDrives')));
+    try {
+        const drives = await api.listDrives();
+        renderDrives(drives);
+    } catch (err) {
+        setDriveContent(makeEmptyState('\u26A0', t('errListDrives'), err.message));
+    }
+}
+
+function makeEmptyState(icon, title, sub) {
+    const wrap  = document.createElement('div');
+    wrap.className = 'empty-state';
+    const ico   = document.createElement('div');
+    ico.className = 'empty-icon';
+    ico.textContent = icon;
+    const tEl     = document.createElement('p');
+    tEl.className = 'empty-title';
+    tEl.textContent = title;
+    wrap.append(ico, tEl);
+    if (sub) {
+        const s = document.createElement('p');
+        s.className = 'empty-sub';
+        s.textContent = sub;
+        wrap.appendChild(s);
+    }
+    return wrap;
+}
+
+function setDriveContent(el) {
+    while (driveContent.firstChild) driveContent.removeChild(driveContent.firstChild);
+    driveContent.appendChild(el);
+}
+
+function renderDrives(drives) {
+    lastDrives = drives || [];
+    if (!drives || drives.length === 0) {
+        setDriveContent(makeEmptyState('\uD83D\uDD0C', t('noDrivesFound'), t('noDrivesSub')));
+        return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'drive-grid';
+    for (const drive of drives) {
+        const card  = document.createElement('div');
+        card.className = 'drive-card';
+
+        const icon  = document.createElement('div');
+        icon.className = 'drive-icon';
+        icon.textContent = '\uD83D\uDCBE';
+
+        const name  = document.createElement('div');
+        name.className = 'drive-name';
+        name.textContent = drive.description;
+
+        const dpath = document.createElement('div');
+        dpath.className = 'drive-path';
+        dpath.textContent = drive.displayDevice || drive.device;
+
+        const dsz   = document.createElement('div');
+        dsz.className = 'drive-size';
+        dsz.textContent = fmtBytes(drive.size);
+
+        const btn   = document.createElement('button');
+        btn.className = 'drive-scan-btn';
+        btn.textContent = t('scanDriveBtn');
+        btn.addEventListener('click', () => handleDevice(drive));
+
+        card.append(icon, name, dpath, dsz, btn);
+        grid.appendChild(card);
+    }
+    setDriveContent(grid);
+}
+
+refreshBtn.addEventListener('click', loadDrives);
+
+// ── Start scan for chosen drive (3-step: unmount → choose folder → scan) ───────
+async function handleDevice(drive) {
+    currentDrive  = drive;
+    srcDevicePath = drive.device;
+    srcOutputDir      = null;
+    finalCount        = null;
+    clips.length      = 0;
+    thumbQueue.length = 0;
+    gridFocusIdx  = -1;
+    while (mediaGrid.firstChild) mediaGrid.removeChild(mediaGrid.firstChild);
+    resultsLabel.setAttribute('data-i18n', 'secResults');
+
+    hideEl(driveSection);
+    hideEl(errorBox);
+    hideEl(permBox);
+    hideEl(resultsSection);
+    hideEl(geoSection);
+    hideEl(retryBar);
+    hideEl(outputLine);
+    showEl(progressSection);
+
+    progFill.style.width      = '0%';
+    progFill.style.background = 'var(--accent)';
+    foundCount.textContent    = '0';
+    progDetail.textContent    = '\u2014';
+    spinner.style.display     = '';
+    cancelBtn.style.display   = 'none';
+    scanAnotherBtn.classList.add('hidden');
+
+    // Step 1: Unmount
+    statusText.textContent = t('statusUnmounting');
+    const unmount = await api.unmountDrive(drive);
+    if (!unmount.success) {
+        showUnmountError(unmount.error || t('statusUnmountFailed'));
+        return;
+    }
+
+    // Step 2: Choose output folder
+    statusText.textContent = t('statusChooseFolder');
+    const folder = await api.chooseOutputFolder();
+    if (!folder) {
+        hideEl(progressSection);
+        showEl(driveSection);
+        return;
+    }
+    srcOutputDir = folder;
+    outputPath.textContent = folder;
+    showEl(outputLine);
+
+    // Step 3: Scan
+    statusText.textContent = t('statusInit');
+    cancelBtn.style.display = '';
+    wireListeners();
+    api.startScan(srcDevicePath, srcOutputDir);
+}
+
+function showUnmountError(msg) {
+    spinner.style.display = 'none';
+    errorBox.textContent  = '\u26A0 ' + msg;
+    showEl(errorBox);
+    showEl(retryBar);
+    statusText.textContent = t('statusUnmountFailed');
+}
+
+retryBtn.addEventListener('click', () => {
+    hideEl(errorBox);
+    if (currentDrive) handleDevice(currentDrive);
+});
+
+backFromRetryBtn.addEventListener('click', () => {
+    hideEl(progressSection);
+    hideEl(errorBox);
+    showEl(driveSection);
+});
+
+function wireListeners() {
+    ['scan-status','scan-geometry','scan-progress','scan-found','scan-done','scan-error'].forEach(ch => api.removeAllListeners(ch));
+
+    api.onScanStatus(({ key, text }) => {
+        statusText.textContent = key ? t(key) : (text || '');
+    });
+
+    api.onScanGeometry(({ geo }) => {
+        srcGeo = geo;
+        renderGeometry(geo);
+        showEl(geoSection);
+    });
+
+    api.onScanProgress(({ cluster, total, found }) => {
+        const pct = total > 0 ? (cluster / total * 100) : 0;
+        progFill.style.width = pct.toFixed(1) + '%';
+        progBar.setAttribute('aria-valuenow', Math.round(pct));
+        progDetail.textContent = t('progDetail', cluster.toLocaleString(), total.toLocaleString());
+        foundCount.textContent = found.toLocaleString();
+    });
+
+    api.onScanFound(({ cluster, clusterCount, size, offset, savedPath }) => {
+        clips.push({ cluster, clusterCount, size, offset, savedPath });
+        appendCard(clips.length - 1);
+        showEl(resultsSection);
+    });
+
+    api.onScanDone(({ count }) => {
+        finalCount = count;
+        statusText.textContent   = t('statusDone');
+        progFill.style.width     = '100%';
+        foundCount.textContent   = count.toLocaleString();
+        progDetail.textContent   = count === 1 ? t('progSummary1', count.toLocaleString()) : t('progSummaryN', count.toLocaleString());
+        spinner.style.display    = 'none';
+        cancelBtn.style.display  = 'none';
+        resultsLabel.removeAttribute('data-i18n');
+        resultsLabel.textContent = t('secResultsCount', count.toLocaleString());
+        scanAnotherBtn.classList.remove('hidden');
+        showEl(resultsSection);
+    });
+
+    api.onScanError(({ message }) => {
+        if (/EACCES|EPERM|EBUSY|permission|access denied/i.test(message)) {
+            showPermHelp();
+        } else {
+            errorBox.textContent = '\u26A0 ' + message;
+            showEl(errorBox);
+        }
+        spinner.style.display   = 'none';
+        cancelBtn.style.display = 'none';
+        scanAnotherBtn.classList.remove('hidden');
+        showEl(resultsSection);
+    });
+}
+
+// ── Cancel ─────────────────────────────────────────────────────────────────────
+cancelBtn.addEventListener('click', () => {
+    api.cancelScan();
+    statusText.textContent  = t('statusCancelled');
+    spinner.style.display   = 'none';
+    cancelBtn.style.display = 'none';
+    scanAnotherBtn.classList.remove('hidden');
+});
+
+// ── Scan another drive ─────────────────────────────────────────────────────────
+scanAnotherBtn.addEventListener('click', () => {
+    hideEl(progressSection);
+    hideEl(geoSection);
+    showEl(driveSection);
+    loadDrives();
+});
+
+// ── Geometry display ───────────────────────────────────────────────────────────
+function renderGeometry(geo) {
+    while (geoGrid.firstChild) geoGrid.removeChild(geoGrid.firstChild);
+    const items = [
+        { labelKey: 'geoFilesystem',        value: geo.isExFat ? 'exFAT' : 'FAT32', tag: true },
+        { labelKey: 'geoBytesPerSector',    value: geo.bytesPerSector.toLocaleString() },
+        { labelKey: 'geoSectorsPerCluster', value: geo.sectorsPerCluster.toLocaleString() },
+        { labelKey: 'geoClusterSize',       value: fmtBytes(geo.bytesPerCluster) },
+        { labelKey: 'geoTotalClusters',     value: geo.totalClusters.toLocaleString() },
+        { labelKey: 'geoTotalSectors',      value: geo.totalSectors.toLocaleString() },
+        { labelKey: 'geoReservedSectors',   value: geo.reservedSectors.toLocaleString() },
+        { labelKey: 'geoSectorsPerFAT',     value: geo.sectorsPerFAT.toLocaleString() },
+    ];
+    for (const { labelKey, value, tag } of items) {
+        const card = document.createElement('div');
+        card.className = 'geo-card';
+        const lbl = document.createElement('div');
+        lbl.className = 'geo-card-label';
+        lbl.textContent = t(labelKey);
+        const val = document.createElement('div');
+        val.className = 'geo-card-value';
+        if (tag) {
+            const span = document.createElement('span');
+            span.className = 'fs-tag';
+            span.textContent = value;
+            val.appendChild(span);
+        } else {
+            val.textContent = value;
+        }
+        card.append(lbl, val);
+        geoGrid.appendChild(card);
+    }
+}
+
+// ── Thumbnail queue — one at a time to avoid overwhelming device I/O ───────────
+const thumbQueue = [];
+let   thumbBusy  = false;
+
+function queueThumbnail(canvas, placeholder, url) {
+    thumbQueue.push({ canvas, placeholder, url });
+    if (!thumbBusy) drainThumbQueue();
+}
+
+function drainThumbQueue() {
+    if (!thumbQueue.length) { thumbBusy = false; return; }
+    thumbBusy = true;
+    const { canvas, placeholder, url } = thumbQueue.shift();
+    const vid   = document.createElement('video');
+    vid.muted   = true;
+    vid.preload = 'metadata';
+    let finished = false;
+    const done   = () => { if (finished) return; finished = true; vid.src = ''; drainThumbQueue(); };
+    const timer = setTimeout(done, 8000);
+    vid.addEventListener('loadedmetadata', () => {
+        vid.currentTime = Math.min(2, (vid.duration || 0) > 0.1 ? vid.duration - 0.1 : 0);
+    }, { once: true });
+    vid.addEventListener('seeked', () => {
+        clearTimeout(timer);
+        try {
+            canvas.width  = vid.videoWidth  || 320;
+            canvas.height = vid.videoHeight || 180;
+            canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
+            canvas.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } catch (_) { /* keep placeholder on tainted canvas / decode error */ }
+        done();
+    }, { once: true });
+    vid.addEventListener('error', () => { clearTimeout(timer); done(); }, { once: true });
+    vid.src = url;
+}
+
+// ── Media grid cards ───────────────────────────────────────────────────────────
+function appendCard(idx) {
+    const { size, offset, savedPath } = clips[idx];
+    const clipUrl = api.getClipUrl(srcDevicePath, offset, size);
+
+    const card = document.createElement('div');
+    card.className = 'media-card';
+
+    // Thumbnail area
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'media-thumb-wrap';
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'media-thumb hidden';
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'media-thumb-ph';
+    placeholder.textContent = '\uD83C\uDFA6';
+
+    const playOverlay = document.createElement('div');
+    playOverlay.className = 'media-play-overlay';
+    const playIcon = document.createElement('div');
+    playIcon.className = 'media-play-icon';
+    playOverlay.appendChild(playIcon);
+
+    thumbWrap.append(canvas, placeholder, playOverlay);
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'media-footer';
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'media-num';
+    numSpan.textContent = '#' + (idx + 1);
+
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'media-size';
+    sizeSpan.textContent = fmtBytes(size);
+
+    const statusSpan = document.createElement('span');
+    if (savedPath) {
+        statusSpan.className = 'media-saved';
+        statusSpan.textContent = '\u2713';
+        statusSpan.title = savedPath;
+    } else {
+        statusSpan.className = 'media-unsaved';
+        statusSpan.textContent = '\u26A0';
+        statusSpan.title = t('btnSaveFailedTitle');
+    }
+
+    footer.append(numSpan, sizeSpan, statusSpan);
+    card.append(thumbWrap, footer);
+
+    card.addEventListener('click', () => {
+        setGridFocus(idx);
+        previewClip(idx);
+    });
+
+    mediaGrid.appendChild(card);
+    queueThumbnail(canvas, placeholder, clipUrl);
+}
+
+// ── Grid focus ─────────────────────────────────────────────────────────────────
+function setGridFocus(idx) {
+    const cards = mediaGrid.querySelectorAll('.media-card');
+    if (gridFocusIdx >= 0 && cards[gridFocusIdx]) cards[gridFocusIdx].classList.remove('focused');
+    gridFocusIdx = idx;
+    if (idx >= 0 && cards[idx]) {
+        cards[idx].classList.add('focused');
+        cards[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+// ── Column controls ────────────────────────────────────────────────────────────
+function setGridCols(n) {
+    gridCols = Math.max(1, Math.min(6, n));
+    mediaGrid.style.setProperty('--grid-cols', gridCols);
+    colsVal.textContent = gridCols;
+    colsMinus.disabled  = gridCols <= 1;
+    colsPlus.disabled   = gridCols >= 6;
+}
+
+colsMinus.addEventListener('click', () => setGridCols(gridCols - 1));
+colsPlus.addEventListener('click',  () => setGridCols(gridCols + 1));
+
+// ── Download — native save dialog via main process ─────────────────────────────
+async function downloadClip(idx) {
+    const { cluster, offset, size } = clips[idx];
+    try {
+        const result = await api.downloadClip(srcDevicePath, offset, size, cluster + '.mp4');
+        if (!result.success && !result.canceled) {
+            alert('Download failed: ' + result.error);
+        }
+    } catch (err) {
+        alert('Download failed: ' + err.message);
+    }
+}
+
+// ── Preview — teslacam:// protocol with range support for seeking ───────────────
+function openLocationLabel() {
+    if (api.platform === 'darwin') return t('showInFinder');
+    if (api.platform === 'win32')  return t('showInExplorer');
+    return t('showInFiles');
+}
+
+let currentPreviewSavedPath = null;
+let currentPreviewIdx       = -1;
+
+function previewClip(idx) {
+    const { offset, size, savedPath } = clips[idx];
+    currentPreviewSavedPath = savedPath || null;
+    currentPreviewIdx       = idx;
+    gridFocusIdx            = idx;
+
+    previewTitle.textContent = t('previewClipTitle', idx + 1, fmtBytes(size));
+    previewVideo.src = api.getClipUrl(srcDevicePath, offset, size);
+
+    if (savedPath) {
+        showInFolderBtn.textContent = openLocationLabel();
+        showInFolderBtn.classList.remove('hidden');
+        saveClipBtn.classList.add('hidden');
+    } else {
+        showInFolderBtn.classList.add('hidden');
+        saveClipBtn.classList.remove('hidden');
+    }
+
+    showEl(previewModal);
+    previewVideo.play().catch(() => {});
+}
+
+showInFolderBtn.addEventListener('click', () => {
+    if (currentPreviewSavedPath) api.showInFolder(currentPreviewSavedPath);
+});
+
+saveClipBtn.addEventListener('click', () => {
+    if (currentPreviewIdx >= 0) downloadClip(currentPreviewIdx);
+});
+
+function closePreviewModal() {
+    previewVideo.pause();
+    previewVideo.src = '';
+    hideEl(previewModal);
+    setGridFocus(currentPreviewIdx);
+}
+closePreviewBtn.addEventListener('click', closePreviewModal);
+previewModal.addEventListener('click', e => { if (e.target === previewModal) closePreviewModal(); });
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+    const modalOpen = !previewModal.classList.contains('hidden');
+
+    if (modalOpen) {
+        switch (e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 10);
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                previewVideo.currentTime = Math.min(previewVideo.duration || 0, previewVideo.currentTime + 10);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                if (currentPreviewIdx > 0) previewClip(currentPreviewIdx - 1);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                if (currentPreviewIdx < clips.length - 1) previewClip(currentPreviewIdx + 1);
+                break;
+            case ' ':
+                e.preventDefault();
+                previewVideo.paused ? previewVideo.play() : previewVideo.pause();
+                break;
+            case 'Escape':
+                closePreviewModal();
+                break;
+        }
+    } else {
+        if (resultsSection.classList.contains('hidden') || !clips.length) return;
+        switch (e.key) {
+            case 'ArrowRight':
+                e.preventDefault();
+                setGridFocus(Math.min(clips.length - 1, gridFocusIdx < 0 ? 0 : gridFocusIdx + 1));
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                setGridFocus(Math.max(0, gridFocusIdx < 0 ? 0 : gridFocusIdx - 1));
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                setGridFocus(Math.min(clips.length - 1, gridFocusIdx < 0 ? 0 : gridFocusIdx + gridCols));
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setGridFocus(Math.max(0, gridFocusIdx < 0 ? 0 : gridFocusIdx - gridCols));
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                if (gridFocusIdx >= 0) previewClip(gridFocusIdx);
+                break;
+        }
+    }
+});
+
+// ── Permission error help — shows pre-built platform section ──────────────────
+function showPermHelp() {
+    const plat = api.platform;
+    document.getElementById('permMac').classList.toggle('hidden',   plat !== 'darwin');
+    document.getElementById('permLinux').classList.toggle('hidden', plat !== 'linux');
+    document.getElementById('permWin').classList.toggle('hidden',   plat !== 'win32');
+    showEl(permBox);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function fmtBytes(n) {
+    if (!n || n < 1024)    return (n || 0) + ' B';
+    if (n < 1048576)       return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1073741824)    return (n / 1048576).toFixed(1) + ' MB';
+    return (n / 1073741824).toFixed(2) + ' GB';
+}
+function showEl(el) { el.classList.remove('hidden'); }
+function hideEl(el) { el.classList.add('hidden'); }
+
+// ── Language ───────────────────────────────────────────────────────────────────
+langSelect.addEventListener('change', () => applyLang(langSelect.value));
+
+(function detectLang() {
+    const saved   = localStorage.getItem('lang');
+    const browser = (navigator.language || '').toLowerCase().split('-')[0];
+    applyLang(saved || browser);
+})();
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+setGridCols(4);
+loadDrives();
+</script>
+
+</body>
+</html>
