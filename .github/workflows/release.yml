@@ -72,18 +72,15 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: app
         run: npm ci
 
       - name: Lint
-        working-directory: app
         run: npm run lint
 
       - name: Test
-        working-directory: app
         run: npm test
 
   # ── Build cross-platform executables ─────────────────────────────────────────
@@ -116,14 +113,12 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: app
         run: npm ci
 
       - name: Build
-        working-directory: app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           BUILD_SCRIPT: ${{ matrix.build_script }}
@@ -133,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: app/dist/${{ matrix.artifact_glob }}
+          path: dist/${{ matrix.artifact_glob }}
           if-no-files-found: error
           retention-days: 1
 
